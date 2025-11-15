@@ -6,6 +6,11 @@ use crate::sim::types::*;
 use neuron::Neuron;
 
 const WEIGHT_SUM: f64 = 78.0;
+const TC_PRE: f64 = 20.0;
+const TC_POST_1: f64 = 20.0;
+const TC_POST_2: f64 = 40.0;
+const NU_PRE: f64 = 0.0001;
+const NU_POST: f64 = 0.01;
 
 pub struct Network {
     exc: Vec<Neuron>,
@@ -67,7 +72,9 @@ impl Network {
         }
 
         // update the weights using stdp
-        for (i, weights) in self.weight.iter_mut().enumerate() {}
+        for (i, weights) in self.weight.iter_mut().enumerate() {
+            todo!()
+        }
 
         Self::normalize(&mut self.weight);
 
