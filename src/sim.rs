@@ -1,4 +1,5 @@
 use image::{Rgb, RgbImage};
+use std::fs::File;
 use std::io::{self, Write};
 
 pub mod mnist;
@@ -24,6 +25,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
     let len_width = images.len().to_string().chars().count();
     let blank = vec![0; IMAGE_SIZE];
     let mut network = Network::new(size);
+    let mut cycle = 0;
     let mut miss = 0;
 
     export(&format!("{output_path}0.png"), network.get_weight(), [w, h]);
@@ -31,22 +33,24 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
     for (i, image) in images.iter().enumerate() {
         let n = i + 1;
         print!("\nlearn: {:len_width$} / {}", n, images.len());
+        io::stdout().flush().unwrap();
+        print!(" | intensity, spikes:");
         for intensity in 1.. {
-            print!(" | intensity:{intensity}");
-            io::stdout().flush().unwrap();
+            cycle += 1;
             let mut spike_count = 0;
             for _ in 0..NT {
-                spike_count += network.step(false, DT, image, intensity as f64);
+                let (exc, _inh) = network.step(false, DT, image, intensity as f64);
+                spike_count += exc;
             }
-            print!(", spike_count:{spike_count:2}");
+            print!(" ({intensity},{spike_count:2})");
             if spike_count >= 5 {
                 break;
             } else if intensity == INTENSITY_MAX {
                 miss += 1;
                 break;
             }
+            //io::stdout().flush().unwrap();
         }
-        // io::stdout().flush().unwrap();
         for _ in 0..NT_REST {
             network.step(false, DT, &blank, 1.0);
         }
@@ -57,7 +61,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
     }
     println!("");
 
-    println!("miss: {miss}");
+    println!("cycle: {cycle}, miss: {miss}");
     export(&format!("{output_path}result.png"), network.get_weight(), [w, h]);
     println!("");
 }
@@ -75,4 +79,6 @@ fn export(path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
         *pixel = Rgb([v, v, v]);
     }
     img.save(path).unwrap();
+    let mut file = File::create("latest.txt").unwrap();
+    write!(file, "{path}").unwrap();
 }

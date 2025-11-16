@@ -54,29 +54,32 @@ impl Network {
         }
     }
 
-    pub fn step(&mut self, test_mode: bool, dt: f64, image: &Image, intensity: f64) -> i32 {
+    pub fn step(&mut self, test_mode: bool, dt: f64, image: &Image, intensity: f64) -> (i32, i32) {
         self.input.iter_mut().zip(image.iter()).for_each(|(b, v)| {
             let rate = *v as f64 / 4.0 * intensity; // Hz
             *b = self.rng.random_bool(rate * dt / 1000.0);
         });
 
-        let mut spike_count = 0;
-
         // update exc neurons
+        let mut exc_spikes = 0;
         for (i, (neuron, weights)) in self.exc.iter_mut().zip(self.weight.iter()).enumerate() {
             let dge = weights.iter().zip(self.input.iter()).map(|(w, i)| if *i { *w } else { 0.0 }).sum();
             let dgi = self.inh.iter().enumerate().map(|(j, ni)| if ni.s && j != i { WEIGHT_IE } else { 0.0 }).sum();
             neuron.step(test_mode, dt, dge, dgi);
             if neuron.s {
-                spike_count += 1;
+                exc_spikes += 1;
             }
         }
 
         // update inh neurons
+        let mut inh_spikes = 0;
         for (neuron, exc) in self.inh.iter_mut().zip(&self.exc) {
             let dge = if exc.s { WEIGHT_EI } else { 0.0 };
             let dgi = 0.0;
             neuron.step(test_mode, dt, dge, dgi);
+            if neuron.s {
+                inh_spikes += 1;
+            }
         }
 
         // update the weights using stdp
@@ -98,6 +101,6 @@ impl Network {
             Self::normalize(&mut self.weight);
         }
 
-        return spike_count;
+        return (exc_spikes, inh_spikes);
     }
 }
