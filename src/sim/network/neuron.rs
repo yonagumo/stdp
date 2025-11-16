@@ -5,6 +5,7 @@ use std::fmt;
 // ms
 const TAU_GE: f64 = 1.0;
 const TAU_GI: f64 = 2.0;
+const TAU_THETA: f64 = 1e7;
 
 struct LIFParams {
     // mV
@@ -61,26 +62,23 @@ impl Neuron {
             s: false,
             exc: excitatory,
             v: if excitatory { PARAMS_EXC.v_reset } else { PARAMS_INH.v_reset } - 40.0,
-            theta: 20.0, // excitatory only
+            theta: 20.0,
             g_e: 0.0,
             g_i: 0.0,
             refr: 0.0,
         }
     }
 
-    pub fn step(&mut self, dt: f64, dge: f64, dgi: f64) {
+    pub fn step(&mut self, test_mode: bool, dt: f64, dge: f64, dgi: f64) {
         let p = if self.exc { PARAMS_EXC } else { PARAMS_INH };
-        self.g_e += self.g_e * -1.0 / TAU_GE * dt + dge;
-        self.g_i += self.g_i * -1.0 / TAU_GI * dt + dgi;
+        self.g_e = self.g_e * (-dt / TAU_GE).exp() + dge;
+        self.g_i = self.g_i * (-dt / TAU_GI).exp() + dgi;
         self.v += ((p.v_rest - self.v) + (p.e_exc - self.v) * self.g_e + (p.e_inh - self.v) * self.g_i) / p.tau * dt;
-        if self.exc {
-            self.theta += -self.theta / 1e7 * dt;
-            self.s = self.refr <= 0.0 && self.v > self.theta - 20.0 + p.v_thresh;
-        } else {
-            self.s = self.refr <= 0.0 && self.v > p.v_thresh;
+        self.s = self.refr <= 0.0 && self.v > self.theta - 20.0 + p.v_thresh;
+        if self.exc && !test_mode {
+            self.theta = self.theta * (-dt / TAU_THETA).exp() + if self.s { 0.05 } else { 0.0 };
         }
         if self.s {
-            self.theta += 0.05;
             self.v = p.v_reset;
             self.refr = p.refrac;
         }

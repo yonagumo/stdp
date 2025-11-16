@@ -1,5 +1,7 @@
 #![allow(dead_code, unused_variables)]
+use chrono::Local;
 use std::env;
+use std::fs;
 
 mod sim;
 
@@ -31,7 +33,9 @@ fn learn(args: &[String]) {
     let (w, h) = (w.parse().unwrap(), h.parse().unwrap());
     let limit = args[1].parse().unwrap();
     let images = images.into_iter().take(limit).collect();
-    sim::learn(images, [w, h]);
+    let path = Local::now().format("output/%Y-%m-%d_%H-%M-%S/").to_string();
+    fs::create_dir_all(&path).unwrap();
+    sim::learn(&path, images, [w, h]);
 }
 
 fn label(args: &[String]) {

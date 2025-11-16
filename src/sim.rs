@@ -1,3 +1,6 @@
+use image::{Rgb, RgbImage};
+use std::io::{self, Write};
+
 pub mod mnist;
 
 mod network;
@@ -9,29 +12,67 @@ use types::*;
 // ms
 const T: f64 = 350.0;
 const T_REST: f64 = 150.0;
-const DT: f64 = 1.0;
+const DT: f64 = 0.5;
 
 const NT: usize = (T / DT) as usize;
 const NT_REST: usize = (T_REST / DT) as usize;
 
-pub fn learn(images: Vec<Image>, size: [usize; 2]) {
-    let mut network = Network::new(size);
+const INTENSITY_MAX: usize = 8;
+
+pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
+    let size = w * h;
+    let len_width = images.len().to_string().chars().count();
     let blank = vec![0; IMAGE_SIZE];
+    let mut network = Network::new(size);
+    let mut miss = 0;
+
+    export(&format!("{output_path}0.png"), network.get_weight(), [w, h]);
 
     for (i, image) in images.iter().enumerate() {
-        println!("learn: {:5} / {}", i + 1, images.len());
+        let n = i + 1;
+        print!("\nlearn: {:len_width$} / {}", n, images.len());
         for intensity in 1.. {
+            print!(" | intensity:{intensity}");
+            io::stdout().flush().unwrap();
             let mut spike_count = 0;
             for _ in 0..NT {
-                spike_count += network.step(DT, image, intensity as f64);
+                spike_count += network.step(false, DT, image, intensity as f64);
             }
+            print!(", spike_count:{spike_count:2}");
             if spike_count >= 5 {
+                break;
+            } else if intensity == INTENSITY_MAX {
+                miss += 1;
                 break;
             }
         }
-
+        // io::stdout().flush().unwrap();
         for _ in 0..NT_REST {
-            network.step(DT, &blank, 1.0);
+            network.step(false, DT, &blank, 1.0);
+        }
+        if n % 100 == 0 && n != images.len() {
+            println!("");
+            export(&format!("{output_path}{n}.png"), network.get_weight(), [w, h]);
         }
     }
+    println!("");
+
+    println!("miss: {miss}");
+    export(&format!("{output_path}result.png"), network.get_weight(), [w, h]);
+    println!("");
+}
+
+fn export(path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
+    print!("export: {}", path);
+    // io::stdout().flush().unwrap();
+    let mut img = RgbImage::new((IMAGE_WIDTH * w) as u32, (IMAGE_HEIGHT * h) as u32);
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let nx = x as usize / IMAGE_WIDTH;
+        let ny = y as usize / IMAGE_HEIGHT;
+        let sx = x as usize % IMAGE_WIDTH;
+        let sy = y as usize % IMAGE_HEIGHT;
+        let v = (weight[nx + w * ny][sx + IMAGE_WIDTH * sy] * 256.0).floor().min(255.0) as u8;
+        *pixel = Rgb([v, v, v]);
+    }
+    img.save(path).unwrap();
 }
