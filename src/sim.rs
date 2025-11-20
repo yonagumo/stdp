@@ -18,6 +18,7 @@ const DT: f64 = 0.5;
 const NT: usize = (T / DT) as usize;
 const NT_REST: usize = (T_REST / DT) as usize;
 
+const MIN_SPIKES: usize = 5;
 const INTENSITY_MAX: usize = 8;
 
 pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
@@ -28,7 +29,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
     let mut cycle = 0;
     let mut miss = 0;
 
-    export(&format!("{output_path}0.png"), network.get_weight(), [w, h]);
+    export(&format!("{output_path}0.png"), &network.get_weights(), [w, h]);
 
     for (i, image) in images.iter().enumerate() {
         let n = i + 1;
@@ -43,7 +44,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
                 spike_count += exc;
             }
             print!(" ({intensity},{spike_count:2})");
-            if spike_count >= 5 {
+            if spike_count >= MIN_SPIKES {
                 break;
             } else if intensity == INTENSITY_MAX {
                 miss += 1;
@@ -56,13 +57,13 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
         }
         if n % 100 == 0 && n != images.len() {
             println!("");
-            export(&format!("{output_path}{n}.png"), network.get_weight(), [w, h]);
+            export(&format!("{output_path}{n}.png"), &network.get_weights(), [w, h]);
         }
     }
     println!("");
 
     println!("cycle: {cycle}, miss: {miss}");
-    export(&format!("{output_path}result.png"), network.get_weight(), [w, h]);
+    export(&format!("{output_path}result.png"), &network.get_weights(), [w, h]);
     println!("");
 }
 
