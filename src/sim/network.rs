@@ -1,9 +1,6 @@
 use itertools::izip;
 use rand::prelude::*;
-use rayon::{
-    iter::{IntoParallelRefMutIterator, ParallelIterator},
-    ThreadPool, ThreadPoolBuilder,
-};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::iter;
 
 mod cell;
@@ -11,14 +8,11 @@ mod cell;
 use crate::sim::types::*;
 use cell::Cell;
 
-const N_THREADS: usize = 12;
-
 // ms
 const TC_PRE: f64 = 20.0;
 
 #[derive(Debug)]
 pub struct Network {
-    pool: ThreadPool,
     rng: ThreadRng,
     cells: Vec<Cell>,
     input: [bool; IMAGE_SIZE],
@@ -30,9 +24,8 @@ impl Network {
     pub fn new(size: usize) -> Network {
         let mut rng = rand::rng();
         let cells = iter::repeat_with(|| Cell::new(&mut rng)).take(size).collect();
-        let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
+
         Network {
-            pool,
             rng,
             cells,
             input: [false; IMAGE_SIZE],
@@ -59,18 +52,17 @@ impl Network {
         }
 
         // update cells
-        let (exc_spikes, inh_spikes) = self.pool.install(|| {
-            self.cells
-                .par_iter_mut()
-                .fold(
-                    || (0, 0),
-                    |(exc, inh), cell| {
-                        let (e, i) = cell.step(dt, test_mode, self.inh_spikes, &self.input, &self.x_pre);
-                        (exc + if e { 1 } else { 0 }, inh + if i { 1 } else { 0 })
-                    },
-                )
-                .reduce(|| (0, 0), |(exc, inh), (e, i)| (exc + e, inh + i))
-        });
+        let (exc_spikes, inh_spikes) = self
+            .cells
+            .par_iter_mut()
+            .fold(
+                || (0, 0),
+                |(exc, inh), cell| {
+                    let (e, i) = cell.step(dt, test_mode, self.inh_spikes, &self.input, &self.x_pre);
+                    (exc + if e { 1 } else { 0 }, inh + if i { 1 } else { 0 })
+                },
+            )
+            .reduce(|| (0, 0), |(exc, inh), (e, i)| (exc + e, inh + i));
         self.inh_spikes = inh_spikes;
 
         return (exc_spikes, inh_spikes);

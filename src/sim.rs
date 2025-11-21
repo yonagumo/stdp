@@ -1,4 +1,5 @@
 use image::{Rgb, RgbImage};
+use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::io::{self, Write};
 
@@ -9,6 +10,8 @@ mod types;
 
 use network::Network;
 use types::*;
+
+const N_THREADS: usize = 12;
 
 // ms
 const T: f64 = 350.0;
@@ -22,49 +25,53 @@ const MIN_SPIKES: usize = 5;
 const INTENSITY_MAX: usize = 8;
 
 pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
+    let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
     let size = w * h;
     let len_width = images.len().to_string().chars().count();
     let blank = vec![0; IMAGE_SIZE];
-    let mut network = Network::new(size);
     let mut cycle = 0;
     let mut miss = 0;
 
-    export(&format!("{output_path}0.png"), &network.get_weights(), [w, h]);
+    let weights = pool.install(|| {
+        let mut network = Network::new(size);
+        export(&format!("{output_path}0.png"), &network.get_weights(), [w, h]);
+        for (i, image) in images.iter().enumerate() {
+            let n = i + 1;
+            print!("\nlearn: {:len_width$} / {}", n, images.len());
+            io::stdout().flush().unwrap();
+            print!(" | intensity, spikes:");
+            for intensity in 1.. {
+                cycle += 1;
+                let mut spike_count = 0;
+                for _ in 0..NT {
+                    let (exc, _inh) = network.step(false, DT, image, intensity as f64);
+                    spike_count += exc;
+                }
+                print!(" ({intensity},{spike_count:2})");
+                if spike_count >= MIN_SPIKES {
+                    break;
+                } else if intensity == INTENSITY_MAX {
+                    miss += 1;
+                    break;
+                }
+                //io::stdout().flush().unwrap();
+            }
+            for _ in 0..NT_REST {
+                network.step(false, DT, &blank, 1.0);
+            }
+            if n % 100 == 0 && n != images.len() {
+                println!("");
+                network.debug_print();
+                export(&format!("{output_path}{n}.png"), &network.get_weights(), [w, h]);
+            }
+        }
+        network.get_weights()
+    });
 
-    for (i, image) in images.iter().enumerate() {
-        let n = i + 1;
-        print!("\nlearn: {:len_width$} / {}", n, images.len());
-        io::stdout().flush().unwrap();
-        print!(" | intensity, spikes:");
-        for intensity in 1.. {
-            cycle += 1;
-            let mut spike_count = 0;
-            for _ in 0..NT {
-                let (exc, _inh) = network.step(false, DT, image, intensity as f64);
-                spike_count += exc;
-            }
-            print!(" ({intensity},{spike_count:2})");
-            if spike_count >= MIN_SPIKES {
-                break;
-            } else if intensity == INTENSITY_MAX {
-                miss += 1;
-                break;
-            }
-            //io::stdout().flush().unwrap();
-        }
-        for _ in 0..NT_REST {
-            network.step(false, DT, &blank, 1.0);
-        }
-        if n % 100 == 0 && n != images.len() {
-            println!("");
-            network.debug_print();
-            export(&format!("{output_path}{n}.png"), &network.get_weights(), [w, h]);
-        }
-    }
     println!("");
 
     println!("cycle: {cycle}, miss: {miss}");
-    export(&format!("{output_path}result.png"), &network.get_weights(), [w, h]);
+    export(&format!("{output_path}result.png"), &weights, [w, h]);
     println!("");
 }
 
