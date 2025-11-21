@@ -1,5 +1,9 @@
 use itertools::izip;
 use rand::prelude::*;
+use rayon::{
+    iter::{IntoParallelRefMutIterator, ParallelIterator},
+    ThreadPool, ThreadPoolBuilder,
+};
 use std::iter;
 
 mod cell;
@@ -7,32 +11,42 @@ mod cell;
 use crate::sim::types::*;
 use cell::Cell;
 
+const N_THREADS: usize = 12;
+
 // ms
 const TC_PRE: f64 = 20.0;
 
+#[derive(Debug)]
 pub struct Network {
+    pool: ThreadPool,
     rng: ThreadRng,
+    cells: Vec<Cell>,
     input: [bool; IMAGE_SIZE],
     x_pre: [f64; IMAGE_SIZE],
-    cell: Vec<Cell>,
     inh_spikes: usize,
 }
 
 impl Network {
     pub fn new(size: usize) -> Network {
         let mut rng = rand::rng();
-        let cell = iter::repeat_with(|| Cell::new(&mut rng)).take(size).collect();
+        let cells = iter::repeat_with(|| Cell::new(&mut rng)).take(size).collect();
+        let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
         Network {
+            pool,
             rng,
+            cells,
             input: [false; IMAGE_SIZE],
             x_pre: [0.0; IMAGE_SIZE],
-            cell,
             inh_spikes: 0,
         }
     }
 
+    pub fn debug_print(&self) {
+        println!("{:?}", &self.cells[0]);
+    }
+
     pub fn get_weights(&self) -> Vec<Vec<f64>> {
-        self.cell.iter().map(|c| c.get_weights().to_vec()).collect()
+        self.cells.iter().map(|c| c.weights.to_vec()).collect()
     }
 
     pub fn step(&mut self, test_mode: bool, dt: f64, image: &Image, intensity: f64) -> (usize, usize) {
@@ -44,15 +58,21 @@ impl Network {
             }
         }
 
-        let mut exc_spikes = 0;
-        let mut inh_spikes_new = 0;
-        for cell in self.cell.iter_mut() {
-            let (ecx, inh) = cell.step(dt, test_mode, &self.input, self.inh_spikes, &self.x_pre);
-            exc_spikes += if ecx { 1 } else { 0 };
-            inh_spikes_new += if inh { 1 } else { 0 };
-        }
-        self.inh_spikes = inh_spikes_new;
+        // update cells
+        let (exc_spikes, inh_spikes) = self.pool.install(|| {
+            self.cells
+                .par_iter_mut()
+                .fold(
+                    || (0, 0),
+                    |(exc, inh), cell| {
+                        let (e, i) = cell.step(dt, test_mode, self.inh_spikes, &self.input, &self.x_pre);
+                        (exc + if e { 1 } else { 0 }, inh + if i { 1 } else { 0 })
+                    },
+                )
+                .reduce(|| (0, 0), |(exc, inh), (e, i)| (exc + e, inh + i))
+        });
+        self.inh_spikes = inh_spikes;
 
-        return (exc_spikes, inh_spikes_new);
+        return (exc_spikes, inh_spikes);
     }
 }

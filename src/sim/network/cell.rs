@@ -7,8 +7,6 @@ mod neuron;
 use crate::sim::types::*;
 use neuron::Neuron;
 
-type Weights = [f64; IMAGE_SIZE];
-
 const WEIGHT_SUM: f64 = 78.0;
 
 const WEIGHT_EI: f64 = 10.4;
@@ -20,11 +18,13 @@ const TC_POST_LTP: f64 = 40.0;
 const NU_PRE: f64 = 0.0001;
 const NU_POST: f64 = 0.01;
 
+type Weights = [f64; IMAGE_SIZE];
+
 #[derive(Debug, Clone)]
 pub struct Cell {
-    weights: Weights,
-    exc: Neuron,
-    inh: Neuron,
+    pub exc: Neuron,
+    pub inh: Neuron,
+    pub weights: Weights,
     traces: [(f64, f64); IMAGE_SIZE],
 }
 
@@ -33,15 +33,11 @@ impl Cell {
         let mut weights = array::from_fn(|_| rng.random_range(0.0..=1.0));
         Self::normalize(&mut weights);
         Cell {
-            weights,
             exc: Neuron::new(true),
             inh: Neuron::new(false),
+            weights,
             traces: [(0.0, 0.0); IMAGE_SIZE],
         }
-    }
-
-    pub fn get_weights(&self) -> &Weights {
-        &self.weights
     }
 
     fn normalize(weights: &mut Weights) {
@@ -54,8 +50,8 @@ impl Cell {
         &mut self,
         dt: f64,
         test_mode: bool,
-        input: &[bool; IMAGE_SIZE],
         inh_spikes: usize,
+        input: &[bool; IMAGE_SIZE],
         x_pre: &[f64; IMAGE_SIZE],
     ) -> (bool, bool) {
         // update exc neuron

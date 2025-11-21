@@ -57,6 +57,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
         }
         if n % 100 == 0 && n != images.len() {
             println!("");
+            network.debug_print();
             export(&format!("{output_path}{n}.png"), &network.get_weights(), [w, h]);
         }
     }
