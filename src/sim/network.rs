@@ -34,9 +34,9 @@ impl Network {
         }
     }
 
-    pub fn debug_print(&self) {
-        println!("{:?}", &self.cells[0]);
-    }
+    // pub fn debug(&self) -> String {
+    //     self.cells[0].exc.to_string()
+    // }
 
     pub fn get_weights(&self) -> Vec<Vec<f64>> {
         self.cells.iter().map(|c| c.weights.to_vec()).collect()

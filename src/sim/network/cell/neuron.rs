@@ -73,7 +73,11 @@ impl Neuron {
         let p = if self.exc { PARAMS_EXC } else { PARAMS_INH };
         self.g_e = self.g_e * (-dt / TAU_GE).exp() + dge;
         self.g_i = self.g_i * (-dt / TAU_GI).exp() + dgi;
-        self.v += ((p.v_rest - self.v) + (p.e_exc - self.v) * self.g_e + (p.e_inh - self.v) * self.g_i) / p.tau * dt;
+        // self.v += ((p.v_rest - self.v) + (p.e_exc - self.v) * self.g_e + (p.e_inh - self.v) * self.g_i) / p.tau * dt;
+        let g_tot = 1.0 + self.g_e + self.g_i;
+        let v_inf = (p.v_rest + p.e_exc * self.g_e + p.e_inh * self.g_i) / g_tot;
+        let tau_eff = p.tau / g_tot;
+        self.v = v_inf + (self.v - v_inf) * (-dt / tau_eff).exp();
         self.s = self.refr <= 0.0 && self.v > self.theta - 20.0 + p.v_thresh;
         if self.exc && !test_mode {
             self.theta = self.theta * (-dt / TAU_THETA).exp() + if self.s { 0.05 } else { 0.0 };
