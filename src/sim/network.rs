@@ -5,7 +5,7 @@ use std::iter;
 
 mod cell;
 
-use crate::sim::types::*;
+use crate::sim::common::*;
 use cell::Cell;
 
 // ms
@@ -15,9 +15,9 @@ const TC_PRE: f64 = 20.0;
 pub struct Network {
     rng: ThreadRng,
     cells: Vec<Cell>,
-    input: [bool; IMAGE_SIZE],
+    input: [f64; IMAGE_SIZE],
     x_pre: [f64; IMAGE_SIZE],
-    inh_spikes: usize,
+    inh_spikes: f64,
 }
 
 impl Network {
@@ -28,9 +28,9 @@ impl Network {
         Network {
             rng,
             cells,
-            input: [false; IMAGE_SIZE],
+            input: [FALSE; IMAGE_SIZE],
             x_pre: [0.0; IMAGE_SIZE],
-            inh_spikes: 0,
+            inh_spikes: 0.0,
         }
     }
 
@@ -43,11 +43,13 @@ impl Network {
     }
 
     pub fn step(&mut self, test_mode: bool, dt: f64, image: &Image, intensity: f64) -> (usize, usize) {
+        let decay_x_pre = (-dt / TC_PRE).exp();
         for (v, s, x) in izip!(image, self.input.iter_mut(), self.x_pre.iter_mut()) {
             let rate = *v as f64 / 4.0 * intensity; // Hz
-            *s = self.rng.random_bool(rate * dt / 1000.0);
+            *s = if self.rng.random_bool(rate * dt / 1000.0) { TRUE } else { FALSE };
             if !test_mode {
-                *x = if *s { 1.0 } else { *x * (-dt / TC_PRE).exp() };
+                *x = *x * decay_x_pre + *s;
+                flush_to_zero(x);
             }
         }
 
@@ -56,15 +58,15 @@ impl Network {
             .cells
             .par_iter_mut()
             .fold(
-                || (0, 0),
+                || (0.0, 0.0),
                 |(exc, inh), cell| {
                     let (e, i) = cell.step(dt, test_mode, self.inh_spikes, &self.input, &self.x_pre);
-                    (exc + if e { 1 } else { 0 }, inh + if i { 1 } else { 0 })
+                    (exc + e, inh + i)
                 },
             )
-            .reduce(|| (0, 0), |(exc, inh), (e, i)| (exc + e, inh + i));
+            .reduce(|| (0.0, 0.0), |(exc, inh), (e, i)| (exc + e, inh + i));
         self.inh_spikes = inh_spikes;
 
-        return (exc_spikes, inh_spikes);
+        return (exc_spikes as usize, inh_spikes as usize);
     }
 }

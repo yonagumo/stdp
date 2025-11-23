@@ -4,7 +4,7 @@ use std::array;
 
 mod neuron;
 
-use crate::sim::types::*;
+use crate::sim::common::*;
 use neuron::Neuron;
 
 const WEIGHT_SUM: f64 = 78.0;
@@ -46,31 +46,29 @@ impl Cell {
         weights.iter_mut().for_each(|w| *w *= r);
     }
 
-    pub fn step(
-        &mut self,
-        dt: f64,
-        test_mode: bool,
-        inh_spikes: usize,
-        input: &[bool; IMAGE_SIZE],
-        x_pre: &[f64; IMAGE_SIZE],
-    ) -> (bool, bool) {
+    pub fn step(&mut self, dt: f64, test_mode: bool, inh_spikes: f64, input: &[f64; IMAGE_SIZE], x_pre: &[f64; IMAGE_SIZE]) -> (f64, f64) {
         // update exc neuron
-        let dge = self.weights.iter().zip(input.iter()).map(|(w, i)| if *i { *w } else { 0.0 }).sum();
-        let dgi = (inh_spikes - if self.inh.s { 1 } else { 0 }) as f64 * WEIGHT_IE;
+        let dge = self.weights.iter().zip(input.iter()).map(|(&w, &i)| i * w).sum();
+        let dgi = (inh_spikes - self.inh.s) * WEIGHT_IE;
         self.exc.step(test_mode, dt, dge, dgi);
 
         // update inh neuron
-        let dge = if self.exc.s { WEIGHT_EI } else { 0.0 };
+        let dge = self.exc.s * WEIGHT_EI;
         let dgi = 0.0;
         self.inh.step(test_mode, dt, dge, dgi);
 
         // update the weights using stdp
         if !test_mode {
-            for (w, (ltd, ltp), s_pre, pre) in izip!(self.weights.iter_mut(), self.traces.iter_mut(), input.iter(), x_pre.iter()) {
-                *w += if *s_pre { NU_PRE * *ltd * -1.0 } else { 0.0 } + if self.exc.s { NU_POST * pre * *ltp } else { 0.0 };
+            let decay_ltd = (-dt / TC_POST_LTD).exp();
+            let decay_ltp = (-dt / TC_POST_LTP).exp();
+            for (w, (ltd, ltp), &s_pre, &pre) in izip!(self.weights.iter_mut(), self.traces.iter_mut(), input.iter(), x_pre.iter()) {
+                *w += -s_pre * NU_PRE * *ltd + self.exc.s * NU_POST * pre * *ltp;
                 *w = w.min(1.0);
-                *ltd = if self.exc.s { 1.0 } else { *ltd * (-dt / TC_POST_LTD).exp() };
-                *ltp = if self.exc.s { 1.0 } else { *ltp * (-dt / TC_POST_LTP).exp() };
+                flush_to_zero(w);
+                *ltd = *ltd * decay_ltd + self.exc.s;
+                *ltp = *ltp * decay_ltp + self.exc.s;
+                flush_to_zero(ltd);
+                flush_to_zero(ltp);
             }
             Self::normalize(&mut self.weights);
         }

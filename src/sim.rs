@@ -5,11 +5,11 @@ use std::io::{self, Write};
 
 pub mod mnist;
 
+mod common;
 mod network;
-mod types;
 
+use common::*;
 use network::Network;
-use types::*;
 
 const N_THREADS: usize = 8;
 
