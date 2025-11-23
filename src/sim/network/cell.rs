@@ -62,13 +62,13 @@ impl Cell {
             let decay_ltd = (-dt / TC_POST_LTD).exp();
             let decay_ltp = (-dt / TC_POST_LTP).exp();
             for (w, (ltd, ltp), &s_pre, &pre) in izip!(self.weights.iter_mut(), self.traces.iter_mut(), input.iter(), x_pre.iter()) {
-                *w += -s_pre * NU_PRE * *ltd + self.exc.s * NU_POST * pre * *ltp;
-                *w = w.min(1.0);
-                flush_to_zero(w);
-                *ltd = *ltd * decay_ltd + self.exc.s;
-                *ltp = *ltp * decay_ltp + self.exc.s;
+                *ltd = self.exc.s + (1.0 - self.exc.s) * *ltd * decay_ltd;
+                *ltp = self.exc.s + (1.0 - self.exc.s) * *ltp * decay_ltp;
                 flush_to_zero(ltd);
                 flush_to_zero(ltp);
+                *w += -s_pre * NU_PRE * *ltd + self.exc.s * NU_POST * pre * *ltp;
+                *w = w.min(1.0);
+                // flush_to_zero(w);
             }
             Self::normalize(&mut self.weights);
         }

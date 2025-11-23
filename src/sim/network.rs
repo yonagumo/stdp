@@ -34,10 +34,6 @@ impl Network {
         }
     }
 
-    // pub fn debug(&self) -> String {
-    //     self.cells[0].exc.to_string()
-    // }
-
     pub fn get_weights(&self) -> Vec<Vec<f64>> {
         self.cells.iter().map(|c| c.weights.to_vec()).collect()
     }
@@ -48,7 +44,7 @@ impl Network {
             let rate = *v as f64 / 4.0 * intensity; // Hz
             *s = if self.rng.random_bool(rate * dt / 1000.0) { TRUE } else { FALSE };
             if !test_mode {
-                *x = *x * decay_x_pre + *s;
+                *x = *s + (1.0 - *s) * *x * decay_x_pre;
                 flush_to_zero(x);
             }
         }

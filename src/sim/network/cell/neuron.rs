@@ -9,6 +9,9 @@ const TAU_GE: f64 = 1.0;
 const TAU_GI: f64 = 2.0;
 const TAU_THETA: f64 = 1e7;
 
+const THETA_OFFSET: f64 = 20.0;
+const THETA_SPIKE_WEIGHT: f64 = 0.05;
+
 struct LIFParams {
     // mV
     v_rest: f64,
@@ -64,7 +67,7 @@ impl Neuron {
             s: FALSE,
             exc: excitatory,
             v: if excitatory { PARAMS_EXC.v_reset } else { PARAMS_INH.v_reset } - 40.0,
-            theta: 20.0,
+            theta: THETA_OFFSET,
             g_e: 0.0,
             g_i: 0.0,
             refr: 0.0,
@@ -82,9 +85,9 @@ impl Neuron {
         let v_inf = (p.v_rest + p.e_exc * self.g_e + p.e_inh * self.g_i) / g_tot;
         let tau_eff = p.tau / g_tot;
         self.v = v_inf + (self.v - v_inf) * (-dt / tau_eff).exp();
-        self.s = if self.refr <= 0.0 && self.v > self.theta - 20.0 + p.v_thresh { TRUE } else { FALSE };
+        self.s = if self.refr <= 0.0 && self.v > self.theta - THETA_OFFSET + p.v_thresh { TRUE } else { FALSE };
         if self.exc && !test_mode {
-            self.theta = self.theta * (-dt / TAU_THETA).exp() + self.s * 0.05;
+            self.theta = self.theta * (-dt / TAU_THETA).exp() + self.s * THETA_SPIKE_WEIGHT;
         }
         if self.s == TRUE {
             self.v = p.v_reset;
