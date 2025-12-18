@@ -18,8 +18,6 @@ const TC_POST_LTP: f64 = 40.0;
 const NU_PRE: f64 = 0.0001;
 const NU_POST: f64 = 0.01;
 
-type Weights = [f64; IMAGE_SIZE];
-
 #[derive(Debug, Clone)]
 pub struct Cell {
     pub exc: Neuron,
@@ -32,6 +30,15 @@ impl Cell {
     pub fn new(rng: &mut ThreadRng) -> Cell {
         let mut weights = array::from_fn(|_| rng.random_range(0.0..=1.0));
         Self::normalize(&mut weights);
+        Cell {
+            exc: Neuron::new(true),
+            inh: Neuron::new(false),
+            weights,
+            traces: [(0.0, 0.0); IMAGE_SIZE],
+        }
+    }
+
+    pub fn from_weights(weights: Weights) -> Cell {
         Cell {
             exc: Neuron::new(true),
             inh: Neuron::new(false),

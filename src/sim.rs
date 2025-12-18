@@ -1,4 +1,4 @@
-use image::{Rgb, RgbImage};
+use image::{ImageReader, Rgb, RgbImage};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::io::{self, Write};
@@ -89,4 +89,33 @@ fn export(path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
     img.save(path).unwrap();
     let mut file = File::create("latest.txt").unwrap();
     write!(file, "{path}").unwrap();
+}
+
+pub fn label(path: &str, images: Vec<Image>, labels: Vec<Label>) {
+    let (size, weights) = import(path);
+    let network = Network::from_weights(weights);
+    todo!()
+}
+
+fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
+    println!("import: {path}");
+    let img = ImageReader::open(path).unwrap().decode().unwrap().into_rgb8();
+    let w = img.width() as usize / IMAGE_WIDTH;
+    let h = img.height() as usize / IMAGE_HEIGHT;
+    let size = w * h;
+    let mut weights = Vec::new();
+    let mut cell_weights = [0.0; IMAGE_SIZE];
+    for i in 0..size {
+        let sx = i % w;
+        let sy = i / w;
+        for (j, ws) in cell_weights.iter_mut().enumerate() {
+            let x = sx * IMAGE_WIDTH + j % IMAGE_WIDTH;
+            let y = sy * IMAGE_HEIGHT + j / IMAGE_WIDTH;
+            let rgb = img.get_pixel(x as u32, y as u32).0;
+            let v = rgb[0];
+            *ws = v as f64 / 255.0;
+        }
+        weights.push(cell_weights.clone());
+    }
+    ([w, h], weights)
 }

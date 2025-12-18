@@ -34,6 +34,18 @@ impl Network {
         }
     }
 
+    pub fn from_weights(weights: Vec<Weights>) -> Network {
+        let cells = weights.iter().map(|ws| Cell::from_weights(*ws)).collect();
+
+        Network {
+            rng: rand::rng(),
+            cells,
+            input: [FALSE; IMAGE_SIZE],
+            x_pre: [0.0; IMAGE_SIZE],
+            inh_spikes: 0.0,
+        }
+    }
+
     pub fn get_weights(&self) -> Vec<Vec<f64>> {
         self.cells.iter().map(|c| c.weights.to_vec()).collect()
     }
