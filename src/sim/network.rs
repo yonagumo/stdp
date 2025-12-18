@@ -11,7 +11,7 @@ use cell::Cell;
 // ms
 const TC_PRE: f64 = 20.0;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Network {
     rng: ThreadRng,
     cells: Vec<Cell>,
@@ -48,6 +48,10 @@ impl Network {
 
     pub fn get_weights(&self) -> Vec<Vec<f64>> {
         self.cells.iter().map(|c| c.weights.to_vec()).collect()
+    }
+
+    pub fn fired(&self) -> Vec<f64> {
+        self.cells.iter().map(|c| c.exc.s).collect()
     }
 
     pub fn step(&mut self, test_mode: bool, dt: f64, image: &Image, intensity: f64) -> (usize, usize) {

@@ -92,9 +92,55 @@ fn export(path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
 }
 
 pub fn label(path: &str, images: Vec<Image>, labels: Vec<Label>) {
-    let (size, weights) = import(path);
-    let network = Network::from_weights(weights);
-    todo!()
+    let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
+    let ([w, h], weights) = import(path);
+    let size = w * h;
+    let len_width = images.len().to_string().chars().count();
+
+    let mut count_label = vec![0; 10];
+    let mut count_fire = vec![[0.0; 10]; size];
+
+    pool.install(|| {
+        let network = Network::from_weights(weights);
+        for (i, (image, label)) in images.iter().zip(&labels).enumerate() {
+            let n = i + 1;
+            println!("label: {:len_width$} / {}", n, images.len());
+            count_label[*label as usize] += 1;
+            let mut net = network.clone();
+            for _ in 0..NT {
+                net.step(true, DT, image, 1.0);
+                for (s, c) in net.fired().iter().zip(count_fire.iter_mut()) {
+                    if *s == TRUE {
+                        c[*label as usize] += 1.0;
+                    }
+                }
+            }
+        }
+    });
+
+    for c in count_fire.iter_mut() {
+        for (spikes, total) in c.iter_mut().zip(&count_label) {
+            *spikes /= *total as f64;
+        }
+    }
+
+    let result: Vec<usize> = count_fire
+        .iter()
+        .map(|rates| rates.iter().enumerate().max_by(|(_, a), (_, b)| a.total_cmp(b)).unwrap().0)
+        .collect();
+
+    let mut total = [0; 10];
+    result.iter().for_each(|l| total[*l] += 1);
+
+    println!("input_labels: {count_label:?}");
+    println!("cell_num: {total:?}");
+
+    result.chunks(w).for_each(|row| println!("{row:?}"));
+
+    let base_path = &path[0..path.len() - 4];
+    let output_path = format!("{base_path}.txt");
+    let mut file = File::create(output_path).unwrap();
+    write!(file, "{result:?}").unwrap();
 }
 
 fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
