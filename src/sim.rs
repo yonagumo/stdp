@@ -1,7 +1,7 @@
 use image::{ImageReader, Rgb, RgbImage};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 pub mod mnist;
 
@@ -137,10 +137,12 @@ pub fn label(path: &str, images: Vec<Image>, labels: Vec<Label>) {
 
     result.chunks(w).for_each(|row| println!("{row:?}"));
 
+    let output: String = result.into_iter().map(|n| n.to_string()).collect();
+
     let base_path = &path[0..path.len() - 4];
     let output_path = format!("{base_path}.txt");
     let mut file = File::create(output_path).unwrap();
-    write!(file, "{result:?}").unwrap();
+    write!(file, "{output}").unwrap();
 }
 
 fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
@@ -164,4 +166,65 @@ fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
         weights.push(cell_weights.clone());
     }
     ([w, h], weights)
+}
+
+pub fn test(path: &str, images: Vec<Image>, answers: Vec<Label>) {
+    let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
+    let ([w, h], weights) = import(&format!("{path}.png"));
+    let size = w * h;
+    let len_width = images.len().to_string().chars().count();
+    let labels = load_labels(&format!("{path}.txt"));
+
+    let mut correct = 0;
+    let mut matrix = [[0; 10]; 10];
+
+    let mut count_label = vec![0; 10];
+
+    for l in labels.iter() {
+        count_label[*l as usize] += 1;
+    }
+
+    pool.install(|| {
+        let network = Network::from_weights(weights);
+
+        for (i, (image, &answer)) in images.iter().zip(&answers).enumerate() {
+            let n = i + 1;
+            print!("test: {:len_width$} / {}", n, images.len());
+            let mut net = network.clone();
+            let mut count_fire = vec![0; size];
+            for _ in 0..NT {
+                net.step(true, DT, image, 1.0);
+                for (s, c) in net.fired().iter().zip(count_fire.iter_mut()) {
+                    if *s == TRUE {
+                        *c += 1;
+                    }
+                }
+            }
+            let mut spikes = [0; 10];
+            for (s, l) in count_fire.iter().zip(&labels) {
+                spikes[*l as usize] += s;
+            }
+            let rates: Vec<f64> = spikes.iter().zip(&count_label).map(|(&s, &n)| s as f64 / n as f64).collect();
+            let result = rates.iter().enumerate().max_by(|(_, a), (_, b)| a.total_cmp(b)).unwrap().0;
+            matrix[answer as usize][result] += 1;
+            let c = result == answer as usize;
+            if c {
+                correct += 1;
+            }
+            println!(" | {answer} -> {result} {}", if c { "o" } else { "x" });
+        }
+    });
+
+    println!("done! correct: {correct} / {} ({}%)", images.len(), correct as f64 / images.len() as f64 * 100.0);
+
+    for (a, exp) in matrix.iter().enumerate() {
+        println!("{a}: {exp:?}");
+    }
+}
+
+fn load_labels(path: &str) -> Vec<Label> {
+    let mut labels = String::new();
+    let mut f = File::open(path).unwrap();
+    f.read_to_string(&mut labels).unwrap();
+    labels.chars().map(|c| c.to_digit(10).unwrap() as Label).collect()
 }

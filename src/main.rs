@@ -52,7 +52,13 @@ fn label(args: &[String]) {
 }
 
 fn test(args: &[String]) {
-    let images = load_mnist_images(MNIST_TEST_IMAGE_PATH);
-    let labels = load_mnist_labels(MNIST_TEST_LABEL_PATH);
-    todo!()
+    let limit = args[1].parse().unwrap();
+    let images = load_mnist_images(MNIST_TEST_IMAGE_PATH).into_iter().take(limit).collect();
+    let labels = load_mnist_labels(MNIST_TEST_LABEL_PATH).into_iter().take(limit).collect();
+    let mut latest = String::new();
+    if let Ok(mut f) = fs::File::open("latest.txt") {
+        f.read_to_string(&mut latest).unwrap();
+    };
+    let path = if args[0] == "latest" { latest } else { args[0].clone() };
+    sim::test(&path, images, labels);
 }
