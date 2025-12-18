@@ -33,7 +33,7 @@ fn learn(args: &[String]) {
     let (w, h) = args[0].split_once('x').unwrap();
     let (w, h) = (w.parse().unwrap(), h.parse().unwrap());
     let limit = args[1].parse().unwrap();
-    let images = images.into_iter().take(limit).collect();
+    let images = images.into_iter().cycle().take(limit).collect();
     let path = Local::now().format("output/%Y-%m-%d_%H-%M-%S/").to_string();
     fs::create_dir_all(&path).unwrap();
     sim::learn(&path, images, [w, h]);
@@ -41,8 +41,8 @@ fn learn(args: &[String]) {
 
 fn label(args: &[String]) {
     let limit = args[1].parse().unwrap();
-    let images = load_mnist_images(MNIST_TRAIN_IMAGE_PATH).into_iter().take(limit).collect();
-    let labels = load_mnist_labels(MNIST_TRAIN_LABEL_PATH).into_iter().take(limit).collect();
+    let images = load_mnist_images(MNIST_TRAIN_IMAGE_PATH).into_iter().cycle().take(limit).collect();
+    let labels = load_mnist_labels(MNIST_TRAIN_LABEL_PATH).into_iter().cycle().take(limit).collect();
     let mut latest = String::new();
     if let Ok(mut f) = fs::File::open("latest.txt") {
         f.read_to_string(&mut latest).unwrap();
@@ -53,8 +53,8 @@ fn label(args: &[String]) {
 
 fn test(args: &[String]) {
     let limit = args[1].parse().unwrap();
-    let images = load_mnist_images(MNIST_TEST_IMAGE_PATH).into_iter().take(limit).collect();
-    let labels = load_mnist_labels(MNIST_TEST_LABEL_PATH).into_iter().take(limit).collect();
+    let images = load_mnist_images(MNIST_TEST_IMAGE_PATH).into_iter().cycle().take(limit).collect();
+    let labels = load_mnist_labels(MNIST_TEST_LABEL_PATH).into_iter().cycle().take(limit).collect();
     let mut latest = String::new();
     if let Ok(mut f) = fs::File::open("latest.txt") {
         f.read_to_string(&mut latest).unwrap();
