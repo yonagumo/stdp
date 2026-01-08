@@ -132,7 +132,7 @@ pub fn test(path: &str, images: Vec<Image>, answers: Vec<Label>) {
     let ([w, h], weights) = import(path);
     let size = w * h;
     let len_width = images.len().to_string().chars().count();
-    let labels = load_labels(&format!("{path}.txt"));
+    let labels = load_labels(path);
 
     let mut correct = 0;
     let mut matrix = [[0; 10]; 10];
@@ -181,7 +181,8 @@ pub fn test(path: &str, images: Vec<Image>, answers: Vec<Label>) {
     }
 }
 
-fn load_labels(path: &str) -> Vec<Label> {
+fn load_labels(base_path: &str) -> Vec<Label> {
+    let path = format!("{base_path}.txt");
     let mut labels = String::new();
     let mut f = File::open(path).unwrap();
     f.read_to_string(&mut labels).unwrap();
@@ -206,7 +207,8 @@ fn export(base_path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
     write!(file, "{base_path}").unwrap();
 }
 
-fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
+fn import(base_path: &str) -> ([usize; 2], Vec<Weights>) {
+    let path = format!("{base_path}.png");
     println!("import: {path}");
     let img = ImageReader::open(path).unwrap().decode().unwrap().into_rgb8();
     let w = img.width() as usize / IMAGE_WIDTH;
