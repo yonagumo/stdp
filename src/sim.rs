@@ -34,7 +34,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
 
     let weights = pool.install(|| {
         let mut network = Network::new(size);
-        export(&format!("{output_path}0.png"), &network.get_weights(), [w, h]);
+        export(&format!("{output_path}0"), &network.get_weights(), [w, h]);
         for (i, image) in images.iter().enumerate() {
             let n = i + 1;
             print!("\nlearn: {:len_width$} / {}", n, images.len());
@@ -61,7 +61,7 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
             }
             if n % 100 == 0 && n != images.len() {
                 println!("");
-                export(&format!("{output_path}{n}.png"), &network.get_weights(), [w, h]);
+                export(&format!("{output_path}{n}"), &network.get_weights(), [w, h]);
             }
         }
         network.get_weights()
@@ -70,25 +70,8 @@ pub fn learn(output_path: &str, images: Vec<Image>, [w, h]: [usize; 2]) {
     println!("");
 
     println!("cycle: {cycle}, miss: {miss}");
-    export(&format!("{output_path}result.png"), &weights, [w, h]);
+    export(&format!("{output_path}result"), &weights, [w, h]);
     println!("");
-}
-
-fn export(path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
-    print!("export: {}", path);
-    // io::stdout().flush().unwrap();
-    let mut img = RgbImage::new((IMAGE_WIDTH * w) as u32, (IMAGE_HEIGHT * h) as u32);
-    for (x, y, pixel) in img.enumerate_pixels_mut() {
-        let nx = x as usize / IMAGE_WIDTH;
-        let ny = y as usize / IMAGE_HEIGHT;
-        let sx = x as usize % IMAGE_WIDTH;
-        let sy = y as usize % IMAGE_HEIGHT;
-        let v = (weight[nx + w * ny][sx + IMAGE_WIDTH * sy] * 256.0).floor().min(255.0) as u8;
-        *pixel = Rgb([v, v, v]);
-    }
-    img.save(path).unwrap();
-    let mut file = File::create("latest.txt").unwrap();
-    write!(file, "{path}").unwrap();
 }
 
 pub fn label(path: &str, images: Vec<Image>, labels: Vec<Label>) {
@@ -139,38 +122,14 @@ pub fn label(path: &str, images: Vec<Image>, labels: Vec<Label>) {
 
     let output: String = result.into_iter().map(|n| n.to_string()).collect();
 
-    let base_path = &path[0..path.len() - 4];
-    let output_path = format!("{base_path}.txt");
+    let output_path = format!("{path}.txt");
     let mut file = File::create(output_path).unwrap();
     write!(file, "{output}").unwrap();
 }
 
-fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
-    println!("import: {path}");
-    let img = ImageReader::open(path).unwrap().decode().unwrap().into_rgb8();
-    let w = img.width() as usize / IMAGE_WIDTH;
-    let h = img.height() as usize / IMAGE_HEIGHT;
-    let size = w * h;
-    let mut weights = Vec::new();
-    let mut cell_weights = [0.0; IMAGE_SIZE];
-    for i in 0..size {
-        let sx = i % w;
-        let sy = i / w;
-        for (j, ws) in cell_weights.iter_mut().enumerate() {
-            let x = sx * IMAGE_WIDTH + j % IMAGE_WIDTH;
-            let y = sy * IMAGE_HEIGHT + j / IMAGE_WIDTH;
-            let rgb = img.get_pixel(x as u32, y as u32).0;
-            let v = rgb[0];
-            *ws = v as f64 / 255.0;
-        }
-        weights.push(cell_weights.clone());
-    }
-    ([w, h], weights)
-}
-
 pub fn test(path: &str, images: Vec<Image>, answers: Vec<Label>) {
     let pool = ThreadPoolBuilder::new().num_threads(N_THREADS).build().unwrap();
-    let ([w, h], weights) = import(&format!("{path}.png"));
+    let ([w, h], weights) = import(path);
     let size = w * h;
     let len_width = images.len().to_string().chars().count();
     let labels = load_labels(&format!("{path}.txt"));
@@ -227,4 +186,45 @@ fn load_labels(path: &str) -> Vec<Label> {
     let mut f = File::open(path).unwrap();
     f.read_to_string(&mut labels).unwrap();
     labels.chars().map(|c| c.to_digit(10).unwrap() as Label).collect()
+}
+
+fn export(base_path: &str, weight: &Vec<Vec<f64>>, [w, h]: [usize; 2]) {
+    let path = format!("{base_path}.png");
+    print!("export: {}", path);
+    // io::stdout().flush().unwrap();
+    let mut img = RgbImage::new((IMAGE_WIDTH * w) as u32, (IMAGE_HEIGHT * h) as u32);
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let nx = x as usize / IMAGE_WIDTH;
+        let ny = y as usize / IMAGE_HEIGHT;
+        let sx = x as usize % IMAGE_WIDTH;
+        let sy = y as usize % IMAGE_HEIGHT;
+        let v = (weight[nx + w * ny][sx + IMAGE_WIDTH * sy] * 256.0).floor().min(255.0) as u8;
+        *pixel = Rgb([v, v, v]);
+    }
+    img.save(path).unwrap();
+    let mut file = File::create("latest.txt").unwrap();
+    write!(file, "{base_path}").unwrap();
+}
+
+fn import(path: &str) -> ([usize; 2], Vec<Weights>) {
+    println!("import: {path}");
+    let img = ImageReader::open(path).unwrap().decode().unwrap().into_rgb8();
+    let w = img.width() as usize / IMAGE_WIDTH;
+    let h = img.height() as usize / IMAGE_HEIGHT;
+    let size = w * h;
+    let mut weights = Vec::new();
+    let mut cell_weights = [0.0; IMAGE_SIZE];
+    for i in 0..size {
+        let sx = i % w;
+        let sy = i / w;
+        for (j, ws) in cell_weights.iter_mut().enumerate() {
+            let x = sx * IMAGE_WIDTH + j % IMAGE_WIDTH;
+            let y = sy * IMAGE_HEIGHT + j / IMAGE_WIDTH;
+            let rgb = img.get_pixel(x as u32, y as u32).0;
+            let v = rgb[0];
+            *ws = v as f64 / 255.0;
+        }
+        weights.push(cell_weights.clone());
+    }
+    ([w, h], weights)
 }

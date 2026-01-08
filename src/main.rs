@@ -17,7 +17,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if let Some(task) = args.get(1) {
         match task.as_str() {
-            "full" => todo!(),
+            "full" => full(&args[2..]),
             "learn" => learn(&args[2..]),
             "label" => label(&args[2..]),
             "test" => test(&args[2..]),
@@ -26,6 +26,12 @@ fn main() {
     } else {
         panic!("specify task");
     }
+}
+
+fn full(args: &[String]) {
+    learn(&[args[0].clone(), args[1].clone()]);
+    label(&["latest".to_string(), args[2].clone()]);
+    test(&["latest".to_string(), args[3].clone()]);
 }
 
 fn learn(args: &[String]) {
@@ -43,11 +49,7 @@ fn label(args: &[String]) {
     let limit = args[1].parse().unwrap();
     let images = load_mnist_images(MNIST_TRAIN_IMAGE_PATH).into_iter().cycle().take(limit).collect();
     let labels = load_mnist_labels(MNIST_TRAIN_LABEL_PATH).into_iter().cycle().take(limit).collect();
-    let mut latest = String::new();
-    if let Ok(mut f) = fs::File::open("latest.txt") {
-        f.read_to_string(&mut latest).unwrap();
-    };
-    let path = if args[0] == "latest" { latest } else { args[0].clone() };
+    let path = if args[0] == "latest" { get_latest_path().unwrap() } else { args[0].clone() };
     sim::label(&path, images, labels);
 }
 
@@ -55,10 +57,13 @@ fn test(args: &[String]) {
     let limit = args[1].parse().unwrap();
     let images = load_mnist_images(MNIST_TEST_IMAGE_PATH).into_iter().cycle().take(limit).collect();
     let labels = load_mnist_labels(MNIST_TEST_LABEL_PATH).into_iter().cycle().take(limit).collect();
-    let mut latest = String::new();
-    if let Ok(mut f) = fs::File::open("latest.txt") {
-        f.read_to_string(&mut latest).unwrap();
-    };
-    let path = if args[0] == "latest" { latest } else { args[0].clone() };
+    let path = if args[0] == "latest" { get_latest_path().unwrap() } else { args[0].clone() };
     sim::test(&path, images, labels);
+}
+
+fn get_latest_path() -> Option<String> {
+    let mut buf = String::new();
+    let mut f = fs::File::open("latest.txt").ok()?;
+    f.read_to_string(&mut buf).ok()?;
+    Some(buf)
 }
